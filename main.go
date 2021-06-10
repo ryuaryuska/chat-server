@@ -1,6 +1,7 @@
 package main
 
 import (
+	"chat-app/config"
 	"flag"
 	"log"
 	"net/http"
@@ -9,8 +10,8 @@ import (
 var addr = flag.String("addr", ":8080", "http server address")
 
 func main() {
+	mongoConn = config.MongoConnection()
 	flag.Parse()
-
 	wsServer := NewWebsocketServer()
 	go wsServer.Run()
 

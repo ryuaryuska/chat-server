@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"time"
@@ -23,13 +24,14 @@ const (
 )
 
 var (
-	newline = []byte{'\n'}
-	space   = []byte{' '}
+	newline = []byte("hello")
+	// space   = []byte{' '}
 )
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  4096,
 	WriteBufferSize: 4096,
+	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
 // Client represents the websocket client at the server
@@ -38,15 +40,23 @@ type Client struct {
 	conn     *websocket.Conn
 	wsServer *WsServer
 	send     chan []byte
+	rooms    map[*Room]bool
+	Name     string `json:"name"`
 }
 
-func newClient(conn *websocket.Conn, wsServer *WsServer) *Client {
+func newClient(conn *websocket.Conn, wsServer *WsServer, name string) *Client {
 	return &Client{
 		conn:     conn,
 		wsServer: wsServer,
 		send:     make(chan []byte, 256),
+		rooms:    make(map[*Room]bool),
+		Name:     name,
 	}
 
+}
+
+func (client *Client) GetName() string {
+	return client.Name
 }
 
 func (client *Client) readPump() {
@@ -67,8 +77,45 @@ func (client *Client) readPump() {
 			}
 			break
 		}
+		var message Message
 
-		client.wsServer.broadcast <- jsonMessage
+		if err := json.Unmarshal(jsonMessage, &message); err != nil {
+			panic(err)
+		}
+
+		a := []rune(message.Message)
+
+		isCode := string(a[0:1])
+
+		if isCode == "/" {
+			code := string(a[1:])
+			code = getMessageCode(code)
+			if code == "" {
+				code = "Perintah yang anda kirim tidak ada"
+			}
+			dataMsg := Message{
+				Action:  message.Action,
+				Message: code,
+				Target:  message.Target,
+				Sender:  message.Sender,
+			}
+			// w, err := client.conn.NextWriter(websocket.TextMessage)
+			// if err != nil {
+			// 	return
+			// }
+
+			msg, _ := json.Marshal(dataMsg)
+			client.handleNewMessage(msg)
+			if message.Action == SendMessageAction || message.Action == BotMessageAction {
+				insertToDb(dataMsg)
+			}
+		} else {
+			client.handleNewMessage(jsonMessage)
+			if message.Action == SendMessageAction {
+				insertToDb(message)
+			}
+		}
+
 	}
 
 }
@@ -79,6 +126,7 @@ func (client *Client) writePump() {
 		ticker.Stop()
 		client.conn.Close()
 	}()
+
 	for {
 		select {
 		case message, ok := <-client.send:
@@ -93,7 +141,12 @@ func (client *Client) writePump() {
 			if err != nil {
 				return
 			}
+
 			w.Write(message)
+
+			if err != nil {
+				log.Fatal(err)
+			}
 
 			// Attach queued chat messages to the current websocket message.
 			n := len(client.send)
@@ -116,6 +169,9 @@ func (client *Client) writePump() {
 
 func (client *Client) disconnect() {
 	client.wsServer.unregister <- client
+	for room := range client.rooms {
+		room.unregister <- client
+	}
 	close(client.send)
 	client.conn.Close()
 }
@@ -123,16 +179,96 @@ func (client *Client) disconnect() {
 // ServeWs handles websocket requests from clients requests.
 func ServeWs(wsServer *WsServer, w http.ResponseWriter, r *http.Request) {
 
+	name, ok := r.URL.Query()["name"]
+
+	if !ok || len(name[0]) < 1 {
+		log.Println("Url Param 'name' is missing")
+		return
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
-	client := newClient(conn, wsServer)
+	client := newClient(conn, wsServer, name[0])
 
 	go client.writePump()
 	go client.readPump()
 
 	wsServer.register <- client
+}
+
+func (client *Client) handleJoinRoomMessage(message Message) {
+	roomName := message.Message
+	room := client.wsServer.findRoomByName(roomName)
+
+	if room == nil {
+		room = client.wsServer.createRoom(roomName)
+	}
+
+	count := countMsg()
+	if count != 0 {
+		a := getPreviousMsg(roomName)
+		for _, msg := range a {
+			client.conn.WriteJSON(msg)
+		}
+	}
+
+	client.rooms[room] = true
+
+	room.register <- client
+}
+
+func (client *Client) handleLeaveRoomMessage(message Message) {
+	room := client.wsServer.findRoomByName(message.Message)
+	delete(client.rooms, room)
+
+	room.unregister <- client
+}
+
+func (client *Client) handleNewMessage(jsonMessage []byte) {
+	var message Message
+	if err := json.Unmarshal(jsonMessage, &message); err != nil {
+		log.Printf("Error on unmarshal JSON message %s", err)
+	}
+
+	// Attach the client object as the sender of the messsage.
+	message.Sender = client
+	switch message.Action {
+	case SendMessageAction:
+		// The send-message action, this will send messages to a specific room now.
+		// Which room wil depend on the message Target
+		roomName := message.Target
+		// Use the ChatServer method to find the room, and if found, broadcast!
+		room := client.wsServer.findRoomByName(roomName)
+		if room != nil {
+			room.broadcast <- &message
+		}
+	// We delegate the join and leave actions.
+	case JoinRoomAction:
+		client.handleJoinRoomMessage(message)
+
+	case LeaveRoomAction:
+		client.handleLeaveRoomMessage(message)
+	case BotMessageAction:
+		roomName := message.Target
+		room := client.wsServer.findRoomByName(roomName)
+
+		messageBot := &Message{
+			Action:  SendMessageAction,
+			Target:  room.Name,
+			Message: message.Message,
+			Sender: &Client{
+				conn:     client.conn,
+				wsServer: client.wsServer,
+				send:     client.send,
+				rooms:    client.rooms,
+				Name:     "BOT",
+			},
+		}
+
+		room.broadcastToClientsInRoom(messageBot.encode())
+	}
 }
