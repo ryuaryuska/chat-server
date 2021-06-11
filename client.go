@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -26,6 +27,7 @@ const (
 var (
 	newline = []byte("hello")
 	// space   = []byte{' '}
+	timeStamp = time.Now().Format("3:04 PM")
 )
 
 var upgrader = websocket.Upgrader{
@@ -80,8 +82,12 @@ func (client *Client) readPump() {
 		var message Message
 
 		if err := json.Unmarshal(jsonMessage, &message); err != nil {
-			panic(err)
+			fmt.Println("error unmarshal")
 		}
+
+		message.Time = timeStamp
+
+		fmt.Println("pesan: ", message)
 
 		a := []rune(message.Message)
 
@@ -93,21 +99,12 @@ func (client *Client) readPump() {
 			if code == "" {
 				code = "Perintah yang anda kirim tidak ada"
 			}
-			dataMsg := Message{
-				Action:  message.Action,
-				Message: code,
-				Target:  message.Target,
-				Sender:  message.Sender,
-			}
-			// w, err := client.conn.NextWriter(websocket.TextMessage)
-			// if err != nil {
-			// 	return
-			// }
+			message.Message = code
 
-			msg, _ := json.Marshal(dataMsg)
+			msg, _ := json.Marshal(message)
 			client.handleNewMessage(msg)
 			if message.Action == SendMessageAction || message.Action == BotMessageAction {
-				insertToDb(dataMsg)
+				insertToDb(message)
 			}
 		} else {
 			client.handleNewMessage(jsonMessage)
@@ -180,7 +177,6 @@ func (client *Client) disconnect() {
 func ServeWs(wsServer *WsServer, w http.ResponseWriter, r *http.Request) {
 
 	name, ok := r.URL.Query()["name"]
-
 	if !ok || len(name[0]) < 1 {
 		log.Println("Url Param 'name' is missing")
 		return
@@ -236,6 +232,8 @@ func (client *Client) handleNewMessage(jsonMessage []byte) {
 
 	// Attach the client object as the sender of the messsage.
 	message.Sender = client
+	message.Time = timeStamp
+
 	switch message.Action {
 	case SendMessageAction:
 		// The send-message action, this will send messages to a specific room now.
@@ -243,9 +241,11 @@ func (client *Client) handleNewMessage(jsonMessage []byte) {
 		roomName := message.Target
 		// Use the ChatServer method to find the room, and if found, broadcast!
 		room := client.wsServer.findRoomByName(roomName)
+
 		if room != nil {
-			room.broadcast <- &message
+			room.broadcastToClientsInRoom(message.encode())
 		}
+
 	// We delegate the join and leave actions.
 	case JoinRoomAction:
 		client.handleJoinRoomMessage(message)
@@ -265,7 +265,7 @@ func (client *Client) handleNewMessage(jsonMessage []byte) {
 				wsServer: client.wsServer,
 				send:     client.send,
 				rooms:    client.rooms,
-				Name:     "BOT",
+				Name:     "Topin",
 			},
 		}
 

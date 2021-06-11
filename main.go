@@ -18,6 +18,9 @@ func main() {
 	http.HandleFunc("/websocket", func(w http.ResponseWriter, r *http.Request) {
 		ServeWs(wsServer, w, r)
 	})
+	http.HandleFunc("/upload", uploadFile)
+
+	http.Handle("/images", http.FileServer(http.Dir("./public/images")))
 
 	fs := http.FileServer(http.Dir("./public"))
 	http.Handle("/", fs)

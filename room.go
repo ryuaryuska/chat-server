@@ -1,7 +1,5 @@
 package main
 
-import "fmt"
-
 type Room struct {
 	Name       string `json:"name"`
 	clients    map[*Client]bool
@@ -51,16 +49,4 @@ func (room *Room) broadcastToClientsInRoom(message []byte) {
 	for client := range room.clients {
 		client.send <- message
 	}
-}
-
-const welcomeMessage = "%s joined the room"
-
-func (room *Room) notifyClientJoined(client *Client) {
-	message := &Message{
-		Action:  SendMessageAction,
-		Target:  room.Name,
-		Message: fmt.Sprintf(welcomeMessage, client.GetName()),
-	}
-
-	room.broadcastToClientsInRoom(message.encode())
 }
