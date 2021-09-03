@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
- <title>Go Chat!</title>
+ <title>CHAT APP</title>
  <link
  rel="stylesheet"
  href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
@@ -14,7 +14,6 @@
     id="input-form" 
     class="form-inline"
     enctype="multipart/form-data"
-    action="http://127.0.0.1:8080/upload"
     method="post"
     >
      <div class="form-group">
@@ -24,13 +23,11 @@
          class="form-control"
          placeholder="Enter chat s here"
        />
-       <input type="file" name="myFile" id="file"/>
      </div>
      <br>
      <button class="btn btn-primary" type="submit" >Send</button>
    </form>
    <div id="chat-text"></div>
-   <div id="image"></div>
    </div>
 </body>
 <script type="text/javascript" src="app.js"></script>

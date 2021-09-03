@@ -3,13 +3,20 @@ package main
 import (
 	"chat-app/config"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
+
+	"github.com/joho/godotenv"
 )
 
-var addr = flag.String("addr", ":8080", "http server address")
+func init() {
+	godotenv.Load(".env")
+}
 
 func main() {
+	var addr = flag.String("addr", fmt.Sprintf(":%v", os.Getenv("PORT")), "http server address")
 	mongoConn = config.MongoConnection()
 	flag.Parse()
 	wsServer := NewWebsocketServer()

@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func MongoConnection() *mongo.Database {
-	mongoURL := "mongodb://ryu:password@192.168.1.16:27018"
+	mongoURL := os.Getenv("MONGO_HOST")
 
 	clientOptions := options.Client()
 	clientOptions.ApplyURI(mongoURL)
@@ -26,6 +27,6 @@ func MongoConnection() *mongo.Database {
 	}
 
 	fmt.Println("db connected")
-	dbName := "topindopay"
+	dbName := os.Getenv("MONGO_NAME")
 	return client.Database(dbName)
 }
