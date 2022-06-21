@@ -1,91 +1,65 @@
-window.addEventListener('DOMContentLoaded', (_) => {
-  // let username = "ryu";
+window.addEventListener("DOMContentLoaded", (_) => {
   var roomname = getParameterByName("room");
   var username = getParameterByName("name");
-  let websocket = new WebSocket("ws://localhost:8080/websocket?name="+username);
-  let room = document.getElementById("chat-text");
-  // let image = document.getElementById("image");
+  let websocket = new WebSocket(
+    "ws://localhost:8080/websocket?name=" + username
+  );
+  let room = document.getElementById("sender-chat");
 
   websocket.addEventListener("open", (e) => {
-    // websocket.send("test")
-    websocket.send(JSON.stringify({message: roomname, action: "join-room", sender:{ name: "ryu"}}))
-  });
-  websocket.addEventListener("message", function (e) {
-    let data = JSON.parse(e.data);
-    console.log("request client: " + e.data)
-    let chatContent = `<p>${data.sender.name}: ${data.message}  ${data.time}</p>`;
-    room.innerHTML += chatContent;
-    room.scrollTop = room.scrollHeight; // Auto scroll to the bottom
+    websocket.send(JSON.stringify({ message: roomname, action: "join-room" }));
 
-    // if(data.file !== "") {
-    //   let imageContent  = `<img width="700" height="500" src="./images/${data.file}"/>`
-    //   image.innerHTML += imageContent;
-    //   image.scrollTop = image.scrollHeight;
-    // }
+    let form = document.getElementById("input-form");
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      let text = document.getElementById("input-text");
+      check = text.value;
 
-  });
-
-  let form = document.getElementById("input-form");
-  form.addEventListener("submit", function (event) {
-    event.preventDefault();
-    let text = document.getElementById("input-text");
-    // let file = document.getElementById("file");
-    
-    // let filename = ""
-
-    // if (file.files.item(0) != null) {
-
-    //     filename = file.files.item(0).name
-
-    //     let formData = new FormData();
-    //     formData.append('myFile', file.files[0],  file.files.item(0).name);
-
-    //     fetch("http://localhost:8080/upload",
-    //       {
-    //         body: formData,
-    //         method: "post",
-    //         redirect: 'follow'
-    //       }).then((response) => response.json())
-    //         .then((result) => console.log("result: " + result))
-    //         .catch(error => console.log('error', error));
-    //   }
-    check = text.value
-
-
-    // console.log("filename: " + filename)
-
-    if(check.substring(0, 1) === "/"){
       websocket.send(
         JSON.stringify({
-          action: 'bot-message',
+          action: "send-message",
           message: text.value,
           target: roomname,
           sender: {
-            name: "Topin"
-          }
-        }));
-    }else{
-      websocket.send(
-        JSON.stringify({
-          action: 'send-message',
-          message: text.value,
-          target: roomname,
-          sender: {
-            name: username
+            name: username,
           },
           // file: filename
-        }));
+        })
+      );
+      text.value = "";
+    });
+  });
+
+  websocket.addEventListener("message", function (e) {
+    let data = JSON.parse(e.data);
+
+    let clasz = "talk-bubble talk-bubble-recipient ";
+    if (data.sender.name != "student") {
+      clasz = "talk-bubble talk-bubble-recipient ";
     }
-    text.value = "";
+
+    let chatContent = `<div class='d-flex justify-content-start' id='sender-chat'>
+    <div class='${clasz} tri-right round right-in'>
+        <div class='talktext text-white'>
+            <p class='mb-2'>
+                ${data.message}
+            </p>
+            <p class='text-end mx-1 fw-bold'>
+                ${data.time}
+            </p>
+        </div>
+    </div>
+</div>`;
+    room.innerHTML += chatContent;
+    room.scrollTop = room.scrollHeight; // Auto scroll to the bottom
   });
 });
 
-
 function getParameterByName(name, url = window.location.href) {
-  name = name.replace(/[\[\]]/g, '\\$&');
-  var regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)'),
-      results = regex.exec(url);
+  name = name.replace(/[\[\]]/g, "\\$&");
+  var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+    results = regex.exec(url);
   if (!results) return null;
-  if (!results[2]) return '';
-  return decodeURIComponent(results[2].replace(/\+/g, ' '));
+  if (!results[2]) return "";
+  return decodeURIComponent(results[2].replace(/\+/g, " "));
 }

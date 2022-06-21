@@ -27,7 +27,6 @@ const (
 var (
 	newline = []byte("hello")
 	// space   = []byte{' '}
-	timeStamp = time.Now().Format("3:04 PM")
 )
 
 var upgrader = websocket.Upgrader{
@@ -85,7 +84,7 @@ func (client *Client) readPump() {
 			fmt.Println("error unmarshal")
 		}
 
-		message.Time = timeStamp
+		message.Time = time.Now().Format("3:04 PM")
 
 		fmt.Println("pesan: ", message)
 
@@ -103,9 +102,9 @@ func (client *Client) readPump() {
 
 			msg, _ := json.Marshal(message)
 			client.handleNewMessage(msg)
-			if message.Action == SendMessageAction || message.Action == BotMessageAction {
-				insertToDb(message)
-			}
+			// if message.Action == SendMessageAction || message.Action == BotMessageAction {
+			// 	insertToDb(message)
+			// }
 		} else {
 			client.handleNewMessage(jsonMessage)
 			if message.Action == SendMessageAction {
@@ -232,7 +231,7 @@ func (client *Client) handleNewMessage(jsonMessage []byte) {
 
 	// Attach the client object as the sender of the messsage.
 	message.Sender = client
-	message.Time = timeStamp
+	message.Time = time.Now().Format("3:04 PM")
 
 	switch message.Action {
 	case SendMessageAction:

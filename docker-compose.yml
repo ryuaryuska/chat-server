@@ -1,0 +1,8 @@
+version: "2.4"
+services:
+  topindo_update_service:
+    build: .
+    volumes:
+      - /home/devops/service/topindo-update-service/logs:/app/logs
+    ports:
+      - "6767:6767"
